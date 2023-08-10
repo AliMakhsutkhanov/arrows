@@ -15,6 +15,7 @@ class Main {
         this.width = width;
         this.height = height;
         this.draggable = draggable;
+        this.isActive = false;
         this.isSelected = false;
         this.svgElement = null;
         this.prevMouseX = 0;
@@ -30,17 +31,6 @@ class Main {
     getElementsWithRoleId(roleId) {
         return this.elements.filter((element) => element.role_id === roleId);
     }
-
-    select() {
-        this.isSelected = true;
-        this.setColor('red');
-    }
-
-    deselect() {
-        this.isSelected = false;
-        this.setColor('');
-    }
-
     addIncomingRoute(route) {
         this.incomingRoutes.push(route);
     }
@@ -139,8 +129,8 @@ class End extends Main {
 }
 
 class Route extends Main{
-    constructor(id, name, sourceActivity, targetActivity) {
-        super(id,name, 'route');
+    constructor(id, sourceActivity, targetActivity) {
+        super(id, "", 'route');
         this.sourceActivity = sourceActivity;
         this.targetActivity = targetActivity;
     }
@@ -198,17 +188,21 @@ class Process {
             const elementHeight = element.height || 0;
 
             if (x >= elementX && x <= elementX + elementWidth && y >= elementY && y <= elementY + elementHeight) {
+                if (element.isSelected == false) {
+                    element.isSelected = true;
+                } else if (element.isSelected == true) {
+                    element.isSelected = false;
+                }
+                this.elements.forEach((el) => {
+                    el.isActive = false;
+                });
+                element.isActive = true;
                 elementsAtPoint.push(element);
             }
         });
 
         return elementsAtPoint;
     }
-    enableElementDrag(element) {
-        element.enableElementDrag(this);
-    }
-
-
     addElement(element) {
         this.elements.push(element);
     }
@@ -233,6 +227,11 @@ class Process {
             elementsAtClick.forEach((element) => {
                 console.log('Элемент:', element);
             });
+        });
+    }
+    selectElement() {
+        this.canvas.addEventListener('click', (event) => {
+
         });
     }
     changeMode(type) {
@@ -288,14 +287,171 @@ class Process {
         this.addElement(endElement);
         return endElement;
     }
-    createArrow(name, fromElement, toElement) {
-        const route = new Route (`${this.id}-route-${this.elements.length + 1}`, name, fromElement, toElement);
+    createArrow(fromElement, toElement) {
+        const route = new Route (`${this.id}-route-${this.elements.length + 1}`, fromElement, toElement);
         this.addElement(route);
+        this.renderArrow();
         return route;
+    }
+    checkPosition(x, y) {
+        let flag = false;
+        this.elements.forEach((element) => {
+           if (element.type == 'action' || element.type == 'start' || element.type == 'end') {
+               if (x >= element.x && x <= element.x + element.width && y >= element.y && y <= element.y + element.height)
+                   flag = true;
+           } else if (element.type == 'switch') {
+
+           }
+        });
+        return flag;
+    }
+    arrow() {
+        this.elements.forEach((element) => {
+            if (element.type != 'route')
+                return;
+            const from = element.sourceActivity;
+            const to = element.targetActivity;
+            let xf = from.x, yf = from.y, xt = to.x, yt = to.y;
+            let xp = [], yp = [], step = 10;
+
+
+        });
+    }
+    renderArrow() {
+        this.routes.innerHTML = '';
+        this.elements.forEach((element) => {
+
+            if (element.type != 'route') {
+                return;
+            }
+            const from = element.sourceActivity;
+            const to = element.targetActivity;
+            if(!from.outgoingRoutes.includes(element.id)) {
+                from.outgoingRoutes.push(element.id);
+            }
+            if (!from.incomingRoutes.includes(element.id)) {
+                to.incomingRoutes.push(element.id);
+            }
+            let svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            let svgElementB = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            let xFrom = from.x;
+            let yFrom = from.y;
+            let xTo = to.x;
+            let yTo = to.y;
+            if (to.type == 'switch') {
+                if (Math.abs(yFrom + from.height/2 - yTo) < 1){
+                    this.setLinePoints(svgElement, xFrom + from.width, yFrom + from.height/2, xTo, yTo);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                } else if (yFrom + from.height/2 < yTo) {
+                    this.setLinePoints(svgElement, xFrom + from.width/2, yFrom + from.height,
+                        xFrom + from.width/2, yTo);
+                    this.setLinePoints(svgElementB, xFrom + from.width/2, yTo, xTo, yTo);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                } else if (yFrom + from.height/2 > yTo) {
+                    this.setLinePoints(svgElement, xFrom + from.width/2, yFrom,
+                        xFrom + from.width / 2, yTo);
+                    this.setLinePoints(svgElementB, xFrom + from.width / 2, yTo,
+                        xTo, yTo);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                }
+            } else {
+                if (from.type == 'start') {
+                    xFrom = from.x - from.width / 2;
+                    yFrom = from.y - from.height / 2;
+                }
+                if (to.type == 'start') {
+                    xTo = to.x - to.width / 2;
+                    yTo = to.y - to.height / 2;
+                }
+                if (Math.abs(xFrom - xTo) < 1) {
+                    this.setLinePoints(svgElement, xFrom + from.width / 2, secondPoint(yFrom, yFrom + from.height, yTo, yTo + to.height),
+                        xTo + to.width / 2, thirdPoint(yFrom, yFrom + from.height, yTo, yTo + to.height));
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                } else if (Math.abs(yFrom - yTo) < 1) {
+                    this.setLinePoints(svgElement, secondPoint(xFrom, xFrom + from.width, xTo, xTo + to.width), yFrom + from.height / 2,
+                        thirdPoint(xFrom, xFrom + from.width, xTo, xTo + to.width), yTo + to.height / 2);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                } else if (xFrom < xTo && yFrom < yTo) {
+                    this.setLinePoints(svgElement, xFrom + from.width, yFrom + from.height / 2,
+                        xTo + to.width / 2, yFrom + from.height / 2);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    this.setLinePoints(svgElementB, xTo + to.width / 2, yFrom + from.height / 2,
+                        xTo + to.width / 2, yTo);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                } else if (xFrom < xTo && yFrom > yTo) {
+                    this.setLinePoints(svgElement, xFrom + from.width, yFrom + from.height / 2,
+                        xTo + to.width / 2, yFrom + from.height / 2);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    this.setLinePoints(svgElementB, xTo + to.width / 2, yFrom + from.height / 2,
+                        xTo + to.width / 2, yTo + to.height);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                } else if (xFrom > xTo && yFrom < yTo) {
+                    this.setLinePoints(svgElement, xFrom, yFrom + from.height / 2, xTo + to.width / 2, yFrom + from.height / 2);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    this.setLinePoints(svgElementB, xTo + to.width / 2, yFrom + from.height / 2, xTo + to.width / 2, yTo);
+                    svgElementB.addEventListener('mousedown', dragStart);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                } else if (xFrom > xTo && yFrom > yTo) {
+                    this.setLinePoints(svgElement, xFrom, yFrom + from.height / 2, xTo + to.width / 2, yFrom + from.height / 2);
+                    svgElement.id = element.id;
+                    svgElement.classList.add('bpmn-element');
+                    svgElement.classList.add(`bpmn-${element.type}`);
+                    this.setLinePoints(svgElementB, xTo + to.width / 2, yFrom + from.height / 2,
+                        xTo + to.width / 2, yTo + to.height);
+                    svgElementB.id = element.id;
+                    svgElementB.classList.add('bpmn-element');
+                    svgElementB.classList.add(`bpmn-${element.type}`);
+                }
+            }
+        });
+    }
+    setLinePoints(svgElement, a, b, c, d) {
+        svgElement.setAttribute('x1', a);
+        svgElement.setAttribute('y1', b);
+        svgElement.setAttribute('x2', c);
+        svgElement.setAttribute('y2', d);
+        svgElement.setAttribute('stroke', 'black');
+        svgElement.setAttribute('stroke-width', '5');
+        svgElement.addEventListener('mousedown', dragStart);
+        this.routes.appendChild(svgElement);
+    }
+    switchToElement(toElement) {
+        let route = document.getElementById(toElement.incomingRoutes[0]);
+
     }
     enableElementClickHandlers(clickCallback, unclickCallback) {
         this.elements.forEach((element) => {
             const svgElement = document.getElementById(element.id);
+            if (!svgElement)
+                return;
             svgElement.addEventListener('click', () => {
                 if (element.clicked) {
                     element.clicked = false;
@@ -308,6 +464,7 @@ class Process {
         });
 
     }
+
     renderElements() {
         this.canvas.innerHTML = ''; // Очищаем холст
         this.elements.forEach((element) => {
@@ -343,6 +500,7 @@ class Process {
                     svgElement.setAttribute('width', element.width);
                     svgElement.setAttribute('height', element.height);
                     svgElement.setAttribute('draggable', true);
+                    svgElement.setAttribute('fill', 'rgb(255, 255, 255)');
                     svgElement.addEventListener('mousedown', dragStart);
                 }
                 //this.actions.appendChild(element);
@@ -362,7 +520,7 @@ class Process {
                 }
             } else if (element.type === 'start') {
                 svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                const radius = element.width;
+                const radius = element.width / 2;
                 const cx = element.x; // Координата центра круга по оси X
                 const cy = element.y; // Координата центра круга по оси Y (используйте startY для задания стартовой высоты строки)
                 svgElement.setAttribute('cx', cx);
@@ -370,36 +528,7 @@ class Process {
                 svgElement.setAttribute('r', radius);
                 svgElement.setAttribute('draggable', true);
                 svgElement.setAttribute('fill', element.color); // Установите цвет элемента
-                svgElement.addEventListener('mousedown', dragStart);
-                console.log('svg', svgElement);
-
-            } else if (element.type === 'route') {
-                const from = element.sourceActivity;
-                const to = element.targetActivity;
-                from.outgoingRoutes.push(element.id);
-                to.incomingRoutes.push(element.id);
-                svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                const xFrom = from.x;
-                const yFrom = from.y;
-                const xTo = to.x;
-                const yTo = to.y;
-                console.log('xf', xFrom);
-                console.log('yf', yFrom);
-                console.log('xt', xTo);
-                console.log('yt', yTo);
-                svgElement.setAttribute('x1', xFrom);
-                svgElement.setAttribute('y1', yFrom);
-                svgElement.setAttribute('x2', xTo);
-                svgElement.setAttribute('y2', yTo);
-                svgElement.setAttribute('stroke', 'black');
-                svgElement.setAttribute('stroke-width', '5');
-                svgElement.addEventListener('mousedown', dragStart);
-            }
-            if (element.type === 'route') {
-                svgElement.id = element.id;
-                svgElement.classList.add('bpmn-element');
-                svgElement.classList.add(`bpmn-${element.type}`);
-                this.routes.appendChild(svgElement);
+                //svgElement.addEventListener('mousedown', dragStart);
             }
             if (element.type === 'role') {
                 svgElement.id = element.id;
@@ -419,7 +548,7 @@ class Process {
                 svgElement.classList.add(`bpmn-${element.type}`);
                 this.switches.appendChild(svgElement);
             }
-            if (element.type === 'start' || svgElement.type === 'end') {
+            if (element.type === 'start' || element.type === 'end') {
                 svgElement.id = element.id;
                 svgElement.classList.add('bpmn-element');
                 svgElement.classList.add(`bpmn-${element.type}`);
@@ -429,10 +558,11 @@ class Process {
         });
 
         this.canvas.appendChild(this.role);
-        this.canvas.appendChild(this.routes);
         this.canvas.appendChild(this.switches);
         this.canvas.appendChild(this.actions);
         this.canvas.appendChild(this.startEnd);
+        this.canvas.appendChild(this.routes);
+
     }
 
 }
@@ -482,10 +612,9 @@ function dragMove(event) {
                     }
 
                 } else if (element instanceof Switch) {
-                    // Get the center point of the polygon
-                    let center = getPolygonCenter(dragElement);
-                    let deltaX = x - center.x;
-                    let deltaY = y - center.y;
+
+                    let deltaX = x - element.x;
+                    let deltaY = y - element.y;
 
                     // Move the polygon by adjusting its points
                     let points = dragElement.getAttribute('points').split(' ');
@@ -503,11 +632,13 @@ function dragMove(event) {
                             el.move(el.x + deltaX, el.y + deltaY);
                         }
                     }
+                    process.renderArrow();
                 } else if (element instanceof Action) {
                     // For rectangles and areas
 
                     dragElement.setAttribute('x', x);
                     dragElement.setAttribute('y', y);
+                    process.renderArrow();
                     let roleOfAction = process.findRoleById(element.role_id);
 
                     if (roleOfAction) {
@@ -519,9 +650,9 @@ function dragMove(event) {
                 } else if (element instanceof Start) {
                     // For circles
                     const radius = element.width / 2 || 0;
-                    const cx = event.clientX - offset.x + radius || 0;
-                    const cy = event.clientY - offset.y + radius || 0;
-                    element.move(cx - radius, cy - radius);
+                    x = event.clientX - offset.x + radius || 0;
+                    y = event.clientY - offset.y + radius || 0;
+
                 }
                 element.move(x, y);
             }
@@ -582,25 +713,28 @@ function dragEnd(event) {
     document.removeEventListener('mouseup', dragEnd);
 
 }
-
-
-function getPolygonCenter(polygon) {
-    let points = polygon.getAttribute('points').split(' ');
-    let xSum = 0;
-    let ySum = 0;
-    points.forEach(function (point) {
-        let coords = point.split(',');
-        xSum += parseFloat(coords[0]);
-        ySum += parseFloat(coords[1]);
+function secondPoint(a, b, c, d) {
+    let arr = [];
+    arr.push(a);
+    arr.push(b);
+    arr.push(c);
+    arr.push(d);
+    arr.sort(function (s, k) {
+        return s - k;
     });
-
-    let centerX = xSum / points.length;
-    let centerY = ySum / points.length;
-    return { x: centerX, y: centerY };
+    return arr[1];
 }
-// Пример цветов для смены
-
-
+function thirdPoint(a, b, c, d) {
+    let arr = [];
+    arr.push(a);
+    arr.push(b);
+    arr.push(c);
+    arr.push(d);
+    arr.sort(function (s, k) {
+        return s - k;
+    });
+    return arr[2];
+}
 // Функция для обработки клика на элементе
 function handleElementClick(element) {
     const svgElement = document.getElementById(element.id);
@@ -612,6 +746,13 @@ function handleElementUnclick(element) {
     const svgElement = document.getElementById(element.id);
     svgElement.setAttribute('fill', originalColor);
 }
+function getMousePosition(evt) {
+    const CTM = process.canvas.getScreenCTM();
+    return {
+        x: (evt.clientX - CTM.e) / CTM.a,
+        y: (evt.clientY - CTM.f) / CTM.d
+    };
+}
 
 // Включаем обработчики клика на элементы
 
@@ -619,13 +760,14 @@ function handleElementUnclick(element) {
 const process = new Process('process', 800, 600);
 //const role1 = process.createRole('Role1', 100, 150, 'lightblue');
 //const role2 = process.createRole('Role2', 300, 50, 'lightgreen');
-const action1 = process.createAction('Action 1', 550, 250, 100, 50);
-const action2 = process.createAction('Action 2', 250, 350, 100, 50);
+const action1 = process.createAction('Action 1', 50, 250, 100, 50);
+const action2 = process.createAction('Action 2', 450, 100, 100, 50);
 //const action3 = process.createAction('Action 3', 50, 150, 100, 50, role2.id);
-//const start = process.createStart('Start', 300, 350, 30, 'yellow', role2.id);
-//const diamond = process.createSwitch('switch1', '2323', 150, 100, 30, 30);
-const arrow1 = process.createArrow('route1', action1, action2);
-arrow1.setColor('red');
+//const start = process.createStart('Start', 300, 350, 20, 'yellow');
+const diamond = process.createSwitch('switch1', '2323', 350, 100, 30, 30);
+const arrow1 = process.createArrow(diamond,action2);
+const arrow = process.createArrow(action1, diamond);
+
 process.renderElements();
 document.body.appendChild(process.canvas);
 process.enableElementClickHandlers(handleElementClick, handleElementUnclick);
